@@ -23,6 +23,8 @@ class TruthQrEnvelope implements EnvelopeCodec
 
     public const BallotPayloadVersion = 'aes-ballot-compact-1';
 
+    public const SignedBallotPayloadVersion = SignedBallotQrPayload::PayloadVersion;
+
     public const ElectionReturnPayloadVersion = 'waes-er-compact-1';
 
     public const ElectionReturnFragmentVersion = 'waes-er-fragment-1';
@@ -141,13 +143,17 @@ class TruthQrEnvelope implements EnvelopeCodec
      */
     private function inspectBallot(array $segments, string $queryString): array
     {
-        if (count($segments) !== 2 || ($segments[1] ?? null) !== self::BallotPayloadVersion) {
+        $payloadVersion = $segments[1] ?? null;
+
+        if (count($segments) !== 2
+            || ! in_array($payloadVersion, [self::BallotPayloadVersion, self::SignedBallotPayloadVersion], true)
+            || ($segments[0] === self::LegacyBallotType && $payloadVersion !== self::BallotPayloadVersion)) {
             throw new RuntimeException('Ballot payload envelope has an unsupported payload type.');
         }
 
         $canonicalPayload = $this->payloadFromQuery($queryString);
 
-        if (! str_starts_with($canonicalPayload, self::BallotPayloadVersion.':')) {
+        if (! str_starts_with($canonicalPayload, $payloadVersion.':')) {
             throw new RuntimeException('Ballot payload envelope does not contain a compact ballot payload.');
         }
 
@@ -155,7 +161,7 @@ class TruthQrEnvelope implements EnvelopeCodec
             'scheme' => self::Scheme,
             'version' => self::Version,
             'document_type' => self::BallotType,
-            'payload_version' => self::BallotPayloadVersion,
+            'payload_version' => $payloadVersion,
             'part_kind' => 'complete',
             'part_number' => 1,
             'total_parts' => 1,

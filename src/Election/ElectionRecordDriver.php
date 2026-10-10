@@ -58,6 +58,11 @@ final class ElectionRecordDriver implements RecordDriver
             default => throw new RuntimeException('Election Truth QR document type is unsupported.'),
         };
         $this->assertProfile($type);
+
+        if ($type === 'ballot' && ($metadata['payload_version'] ?? null) !== BallotPayloadEnvelope::PayloadVersion) {
+            throw new RuntimeException('Election v1 profile does not accept signed ballots.');
+        }
+
         $canonical = $this->envelope->reassemble($scans);
         $record = $type === 'ballot'
             ? $this->ballotPayload->decode($canonical)

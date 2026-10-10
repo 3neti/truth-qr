@@ -32,4 +32,25 @@ Before using signatures in an offline deployment, the host should:
 
 For a multipart record, Truth QR signs the complete canonical material once, includes that signature in the compact payload, and only then splits the encoded payload across QR symbols. Each fragment carries its index, total count, and the SHA-256 hash of the whole canonical payload. Signature bytes may span fragments. A fragment alone is not a signed record; verification waits for a complete, hash-consistent reassembly. The fragment hash binds parts to one byte sequence, while the signature authenticates that sequence against the host's trusted key.
 
-In `v0.1.0`, the AES election-return driver uses the host-provided `SignatureProvider` in this way. The ballot format remains unsigned. Signing ballots or using an authority-signed public-key roster requires an explicit new wire version and host commissioning policy; neither is implied by the current release.
+The `aes-election-v1` profile keeps its original unsigned ballot and host-signed election return formats. The opt-in `aes-election-v2` profile signs ballots with Ed25519 and retains the existing election return format. AES currently uses `v0.1.0`; adopting the new profile requires a separate AES integration and commissioning step.
+
+## Signed ballot profile (v0.2.0)
+
+The v2 ballot envelope is `truth://v1/waes-ballot/aes-ballot-compact-2?p=...`. Its decoded canonical payload is `aes-ballot-compact-2:AES3|election_id|precinct_id|ballot_style_id|mapping_hash|tabulation_profile|paper_ballot_serial|document_id|document_hash|asset_bundle_id|asset_bundle_hash|candidate_codes|key_id|signature`. Values use the compact ballot escaping rules; the detached signature is base64url encoded. The package signs the complete unsigned payload together with the key ID and the `election.ballot.v2` purpose. The QR carries the key ID and signature, but no public key or trust roster. It does not include an exact ballot timestamp.
+
+The host must supply a protected Ed25519 secret key through `SigningKeyProvider::forRecord()` and resolve trusted public keys through `TrustedPublicKeyResolver::resolve()`. The resolver receives the key ID, purpose, election ID, and precinct ID so the host can enforce its offline commissioning policy. Unknown or unauthorized keys fail closed. The host owns key generation, storage, distribution, revocation, trust-roster updates, and any election-specific authorization checks. Truth QR does not derive keys from Laravel `APP_KEY` or trust keys found in scanned records.
+
+The Laravel service provider loads both profile YAML files but registers only the v1 driver by default. After binding the host contracts and existing election adapters, register the v2 driver explicitly:
+
+```php
+use LBHurtado\TruthQr\Core\TruthQr;
+use LBHurtado\TruthQr\Election\SignedElectionRecordDriver;
+
+$truthQr = app(TruthQr::class);
+$truthQr->register(app(SignedElectionRecordDriver::class));
+
+$scans = $truthQr->encode('aes-election-v2', 'ballot', $ballot);
+$verified = $truthQr->decode('aes-election-v2', $scans);
+```
+
+`decode()` throws on a bad signature, untrusted key, wrong active election or precinct, mapping mismatch, or ballot style mismatch. A successful ballot record includes `truth_signature_valid` and signature metadata. The v1 driver rejects v2 ballots, and the v2 driver rejects unsigned v1 ballots. The existing election return serializer and its `SignatureProvider` remain in use for v2 election returns; this release does not introduce a new election return wire format or an authority-signed key roster.

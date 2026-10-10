@@ -16,6 +16,7 @@ final class TruthQrServiceProvider extends ServiceProvider
         $this->app->singleton(ProfileRegistry::class, function (): ProfileRegistry {
             $registry = new ProfileRegistry;
             $registry->loadYaml(dirname(__DIR__, 2).'/profiles/election.yaml');
+            $registry->loadYaml(dirname(__DIR__, 2).'/profiles/election-v2.yaml');
 
             return $registry;
         });
