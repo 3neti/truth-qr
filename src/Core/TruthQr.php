@@ -3,9 +3,10 @@
 namespace LBHurtado\TruthQr\Core;
 
 use LBHurtado\TruthQr\Contracts\RecordDriver;
+use LBHurtado\TruthQr\Contracts\RecordService;
 use RuntimeException;
 
-final class TruthQr
+final class TruthQr implements RecordService
 {
     /** @var array<string, RecordDriver> */
     private array $drivers = [];
@@ -13,6 +14,26 @@ final class TruthQr
     public function register(RecordDriver $driver): void
     {
         $this->drivers[$driver->profileId()] = $driver;
+    }
+
+    /** @return array<int, string> */
+    public function encodeRecord(RecordPayload $payload): array
+    {
+        return $this->encode($payload->profileId, $payload->recordType, $payload->fields);
+    }
+
+    /** @param array<int, string> $scans */
+    public function decodeRecord(string $profileId, array $scans): DecodedRecord
+    {
+        $decoded = $this->decode($profileId, $scans);
+
+        if (! is_string($decoded['record_type'] ?? null)
+            || ! is_array($decoded['record'] ?? null)
+            || ! is_string($decoded['canonical_payload'] ?? null)) {
+            throw new RuntimeException('Truth QR driver returned a malformed decoded record.');
+        }
+
+        return new DecodedRecord($profileId, $decoded['record_type'], $decoded['record'], $decoded['canonical_payload']);
     }
 
     /** @param array<string, mixed> $record

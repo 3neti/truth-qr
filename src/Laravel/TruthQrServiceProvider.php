@@ -3,6 +3,7 @@
 namespace LBHurtado\TruthQr\Laravel;
 
 use Illuminate\Support\ServiceProvider;
+use LBHurtado\TruthQr\Contracts\RecordService;
 use LBHurtado\TruthQr\Core\ProfileRegistry;
 use LBHurtado\TruthQr\Core\TruthQr;
 use LBHurtado\TruthQr\Election\ElectionRecordDriver;
@@ -27,5 +28,6 @@ final class TruthQrServiceProvider extends ServiceProvider
 
             return $truthQr;
         });
+        $this->app->bind(RecordService::class, fn ($app): RecordService => $app->make(TruthQr::class));
     }
 }

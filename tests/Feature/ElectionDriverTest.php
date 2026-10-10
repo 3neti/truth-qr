@@ -5,6 +5,7 @@ use LBHurtado\TruthQr\Contracts\DocumentReferences;
 use LBHurtado\TruthQr\Contracts\ElectionContext;
 use LBHurtado\TruthQr\Contracts\SignatureProvider;
 use LBHurtado\TruthQr\Core\CanonicalJson;
+use LBHurtado\TruthQr\Core\RecordPayload;
 use LBHurtado\TruthQr\Core\TruthQr;
 use LBHurtado\TruthQr\Election\BallotPayloadEnvelope;
 use LBHurtado\TruthQr\Election\BallotQrPayload;
@@ -94,8 +95,15 @@ it('encodes and verifies ballot and election return records without Laravel', fu
         'selections' => ['president' => ['candidate-1']],
     ];
     $ballotScans = $truthQr->encode('aes-election-v1', 'ballot', $ballot);
+    $typedBallotScans = $truthQr->encodeRecord(new RecordPayload('aes-election-v1', 'ballot', $ballot));
+    $typedBallot = $truthQr->decodeRecord('aes-election-v1', $typedBallotScans);
 
     expect($ballotScans)->toHaveCount(1)
+        ->and($typedBallotScans)->toBe($ballotScans)
+        ->and($typedBallot->profileId)->toBe('aes-election-v1')
+        ->and($typedBallot->recordType)->toBe('ballot')
+        ->and($typedBallot->fields['selections'])->toBe($ballot['selections'])
+        ->and($typedBallot->canonicalPayload)->toBe($truthQr->decode('aes-election-v1', $ballotScans)['canonical_payload'])
         ->and($truthQr->decode('aes-election-v1', $ballotScans)['record']['selections'])->toBe($ballot['selections']);
 
     $return = [
@@ -107,9 +115,15 @@ it('encodes and verifies ballot and election return records without Laravel', fu
         'eml' => ['profile' => 'eml-1', 'scopes' => ['combined' => ['sha256' => 'artifact-hash', 'signing_key_id' => 'key-1']]],
     ];
     $returnScans = $truthQr->encode('aes-election-v1', 'election_return', $return);
+    $typedReturnScans = $truthQr->encodeRecord(new RecordPayload('aes-election-v1', 'election_return', $return));
     $decoded = $truthQr->decode('aes-election-v1', array_reverse($returnScans));
+    $typedReturn = $truthQr->decodeRecord('aes-election-v1', array_reverse($typedReturnScans));
 
-    expect($decoded['record']['truth_signature_valid'])->toBeTrue()
+    expect($typedReturnScans)->toBe($returnScans)
+        ->and($typedReturn->recordType)->toBe('election_return')
+        ->and($typedReturn->fields['truth_signature_valid'])->toBeTrue()
+        ->and($typedReturn->canonicalPayload)->toBe($decoded['canonical_payload'])
+        ->and($decoded['record']['truth_signature_valid'])->toBeTrue()
         ->and($decoded['record']['tally']['president']['candidate-1'])->toBe(2);
 });
 

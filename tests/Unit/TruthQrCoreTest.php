@@ -1,10 +1,16 @@
 <?php
 
+use Illuminate\Container\Container;
+use LBHurtado\TruthQr\Contracts\RecordService;
 use LBHurtado\TruthQr\Core\Base64UrlTransport;
+use LBHurtado\TruthQr\Core\DecodedRecord;
+use LBHurtado\TruthQr\Core\RecordPayload;
 use LBHurtado\TruthQr\Core\ScanSession;
+use LBHurtado\TruthQr\Core\TruthQr;
 use LBHurtado\TruthQr\Election\BallotPayloadEnvelope;
 use LBHurtado\TruthQr\Election\ElectionReturnPayloadEnvelope;
 use LBHurtado\TruthQr\Election\TruthQrEnvelope;
+use LBHurtado\TruthQr\Laravel\TruthQrServiceProvider;
 
 it('loads the versioned AES election profile', function (): void {
     $profile = electionProfileRegistry()->get('aes-election-v1');
@@ -68,4 +74,39 @@ it('rejects an election return URI with extra path segments', function (): void 
 
     expect(fn () => (new TruthQrEnvelope)->inspect("truth://v1/waes-election-return/waes-er-compact-1/extra?p={$encoded}"))
         ->toThrow(RuntimeException::class);
+});
+
+it('rejects invalid generic record payloads', function (string $profileId, string $recordType, array $fields): void {
+    expect(fn () => new RecordPayload($profileId, $recordType, $fields))->toThrow(InvalidArgumentException::class);
+})->with([
+    [' ', 'ballot', []],
+    ['election', '', []],
+    ['election', 'ballot', ['unnamed']],
+    ['election', 'ballot', ['value' => new stdClass]],
+    ['election', 'ballot', ['nested' => [NAN]]],
+]);
+
+it('binds the default record service and permits an application override', function (): void {
+    $container = new Container;
+    (new TruthQrServiceProvider($container))->register();
+    $default = new TruthQr;
+    $container->instance(TruthQr::class, $default);
+
+    expect($container->make(RecordService::class))->toBe($default);
+
+    $replacement = new class implements RecordService
+    {
+        public function encodeRecord(RecordPayload $payload): array
+        {
+            return [];
+        }
+
+        public function decodeRecord(string $profileId, array $scans): DecodedRecord
+        {
+            throw new RuntimeException('Not used by this test.');
+        }
+    };
+    $container->instance(RecordService::class, $replacement);
+
+    expect($container->make(RecordService::class))->toBe($replacement);
 });

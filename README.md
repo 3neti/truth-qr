@@ -19,6 +19,25 @@ The election driver preserves `truth://v1/waes-ballot/aes-ballot-compact-1` and 
 
 The core separates serialization, transport, envelope parsing, image writing, and image decoding. Host applications provide candidate mappings, document references, precinct context, and trusted signing keys through contracts. AES remains the first supported application; later drivers can serve surveys or field data without changing the core.
 
+## Typed record service (v0.3.0)
+
+`RecordPayload` is an immutable, domain-agnostic input with a profile ID, an open string record type, and keyed JSON-compatible fields. The selected `RecordDriver` validates domain fields. `RecordService` defines the typed encode and decode methods; `TruthQr` is the default implementation. Laravel binds the interface to the same `TruthQr` singleton that holds registered drivers, and a host may replace that binding.
+
+```php
+use LBHurtado\TruthQr\Contracts\RecordService;
+use LBHurtado\TruthQr\Core\RecordPayload;
+
+$service = app(RecordService::class);
+$scans = $service->encodeRecord(new RecordPayload('aes-election-v1', 'ballot', $ballotFields));
+$decoded = $service->decodeRecord('aes-election-v1', $scans);
+
+$decoded->recordType;       // ballot
+$decoded->fields;           // verified, domain-decoded record
+$decoded->canonicalPayload; // reassembled canonical bytes
+```
+
+The existing `TruthQr::encode($profileId, $recordType, $fields)` and `decode($profileId, $scans)` methods remain available. The DTO changes no QR wire bytes. Print-time labels and timestamps belong to the host's print context unless a domain profile explicitly puts them in its signed record.
+
 ## Offline signing preflight
 
 Truth QR supplies versioned record serialization, envelopes, fragment reassembly, and the `SignatureProvider` contract. A host application supplies signing keys, independently trusted public keys, local domain context, and the policy for accepting records. No live network or public certificate authority is required during scanning.
