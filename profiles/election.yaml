@@ -1,0 +1,17 @@
+id: aes-election-v1
+version: 1
+description: AES ballot and election return Truth QR wire profile
+records:
+  ballot:
+    document_type: waes-ballot
+    legacy_document_type: vaes-ballot
+    payload_version: aes-ballot-compact-1
+    marker: AES2
+    fragmentable: false
+  election_return:
+    document_type: waes-election-return
+    payload_version: waes-er-compact-1
+    fragment_version: waes-er-fragment-1
+    marker: WAESER1
+    maximum_characters: 900
+    signature: Ed25519
